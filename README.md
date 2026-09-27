@@ -1,58 +1,144 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Software License Management REST API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This project is a Laravel 12-based RESTful API application that enables users to purchase digital software licenses, list their acquired licenses, and manage stock inventory efficiently.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Technical Features & Architecture
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Framework:** Laravel 12 (PHP 8.3+)
+- **Database:** MySQL / SQLite
+- **Architecture:** RESTful API, Service-Repository Pattern, Thin Controllers
+- **Data Integrity & Security:** Database Transactions, Pessimistic Locking (`lockForUpdate` - Race Condition Protection)
+- **Asynchronous Processing:** Laravel Queues & Jobs (`SendLicenseEmailJob`)
+- **CLI Reporting:** Custom Artisan Command (`report:stock`)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Installation & Setup Guide
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
+### 1. Install Project Dependencies
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Environment Configuration
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## Contributing
+Update your database credentials and set the queue connection in your `.env` file:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=software_license_api
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-## Code of Conduct
+```bash
+QUEUE_CONNECTION=database
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. Run Database Migrations & Seeders
+```bash
+php artisan migrate:fresh --seed
+```
 
-## Security Vulnerabilities
+### 4. Start the Application Server & Queue Worker
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**Development Server:**
+```bash
+php artisan serve
+```
 
-## License
+**Queue Worker (for background jobs):**
+```bash
+php artisan queue:work
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## API Endpoints
+
+All responses are formatted and returned using Eloquent API Resources.
+**[Postman Collection - Software License Management API](https://www.postman.com/ibrahim-sen/workspace/software-license-management-api/collection/40401228-e81c8d85-98c5-4cc9-b410-2fac00f9a1cf?action=share&source=copy-link&creator=40401228)**
+
+### 1. List Users
+- **URL:** `GET /api/users`
+- **Description:** Retrieves all registered users in the system.
+
+---
+
+### 2. List Products & Available Stock
+- **URL:** `GET /api/products`
+- **Description:** Retrieves all products alongside their available stock count (`available_stock` where `user_id = NULL`).
+
+---
+
+### 3. List User Licenses
+- **URL:** `GET /api/users/{user}/licenses`
+- **Description:** Retrieves all licenses purchased by the specified user (uses Route Model Binding).
+
+---
+
+### 4. Create Order / Purchase License
+- **URL:** `POST /api/orders`
+- **Description:** Assigns the first available license key of the specified product to the user.
+- **Headers:** `Content-Type: application/json`, `Accept: application/json`
+
+**Request Body:**
+```json
+{
+  "user_id": 1,
+  "product_id": 2
+}
+```
+
+**Success Response (201 Created):**
+```json
+{
+  "message": "Order processed successfully and license assigned.",
+  "data": {
+    "id": 5,
+    "license_key": "A1B2-C3D4-E5F6-G7H8",
+    "assigned_user_id": 1,
+    "purchased_at": "2026-09-24 21:00:00"
+  }
+}
+```
+
+**Error Response (422 Unprocessable Entity - Out of Stock or Invalid ID):**
+```json
+{
+  "message": "Validation failed.",
+  "errors": {
+    "product_id": [
+      "No available licenses in stock for this product."
+    ]
+  }
+}
+```
+
+---
+
+## Stock Reporting Command (CLI)
+
+System administrators can run the following custom Artisan command to display products with available stock count **below 5** in a clean console table:
+
+```bash
+php artisan report:stock
+```
+
+**Sample Console Output:**
+```text
++----+---------------------+-----------+-----------------+
+| ID | Product Name        | Price ($) | Available Stock |
++----+---------------------+-----------+-----------------+
+| 2  | Windows 11 Pro      | 129.00    | 3               |
+| 3  | Antivirus Security  | 49.00     | 4               |
++----+---------------------+-----------+-----------------+
+```
